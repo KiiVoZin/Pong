@@ -4,56 +4,170 @@ using UnityEngine;
 
 public class BallScript : MonoBehaviour
 {
-    [SerializeField] float playerSpeed;
-    Vector2 direction;
-    [SerializeField] float ballSpeed;
-    [SerializeField] Camera cam;
-    [SerializeField] GameObject p1;
-    [SerializeField] GameObject p2;
-    [SerializeField] GameObject leftWall;
-    [SerializeField] GameObject rightWall;
-    [SerializeField] GameObject upWall;
-    [SerializeField] GameObject downWall;
+    [SerializeField] float speed, acceleration;
+    private Vector2 direction;
+    private List<Vector> walls;
+    private List<Vector> players;
+    private GameObject gameManager;
+    private Vector2 move;
+
     // Start is called before the first frame update
     void Start()
     {
-        float angle = Random.Range(30, 60);
-        int temp = Random.Range(0, 2);
-        if(temp == 0){
-            direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)).normalized;
-        }else{
-            direction = new Vector2(-Mathf.Cos(angle), -Mathf.Sin(angle)).normalized;
-        }
+        walls = FindAllWalls();
+        players = FindAllPlayers();
+        ThrowBall();
+        gameManager = GameObject.Find("GameManager");
     }
 
     // Update is called once per frame
     void Update()
     {
-        if(Input.GetKey(KeyCode.W) && p1.transform.position.x + p1.transform.localScale.x <= upWall.transform.position.y - upWall.transform.localScale.y/2){
-            p1.transform.Translate(new Vector2(playerSpeed, 0));
+        players = FindAllPlayers();
+        move = direction * speed * Time.deltaTime;
+        //Check if moving that collides with a player
+        CollisionPlayers(move, players);
+        //Check if moving that collides with a wall
+        //CollisionWalls(move, walls);
+        transform.Translate(move);
+        if (transform.position.x <= -10)
+        {
+            gameManager.GetComponent<GameManagerScript>().p1scored();
+            ThrowBall();
         }
-
-
-
-        transform.Translate(direction * ballSpeed * Time.deltaTime);
-        Bounce();
+        else if (transform.position.x >= 10)
+        {
+            gameManager.GetComponent<GameManagerScript>().p2scored();
+            ThrowBall();
+        }
     }
 
-    public float[] GetBoundaries(){
-        //Top, Down, Left, Right
-        float[] boundaries = new float[4];
-        boundaries[0] = this.transform.position.y + (this.transform.localScale.y/2);
-        boundaries[1] = this.transform.position.y - (this.transform.localScale.y/2);
-        boundaries[2] = this.transform.position.x - (this.transform.localScale.x/2);
-        boundaries[3] = this.transform.position.x + (this.transform.localScale.x/2);
-        return boundaries;
+    private void CollisionPlayers(Vector2 move ,List<Vector> players)
+    {
+        Vector2 ballPosNow = transform.position;
+        Vector2 ballPosNext = ballPosNow + new Vector2(move.x, move.y);
+        Vector2 closestIntersect = move;
+        float distance = Vector2.Distance(ballPosNow, ballPosNext);
+
+        foreach (var player in players)
+        {
+            Vector2 playerP1 = player.p1;
+            Vector2 playerP2 = player.p2;
+            float denominator = (playerP2.y - playerP1.y) * (ballPosNext.x - ballPosNow.x) - (playerP2.x - playerP1.x) * (ballPosNext.y - ballPosNow.y);
+
+            if (denominator != 0)
+            {
+                float u_a = ((playerP2.x - playerP1.x) * (ballPosNow.y - playerP1.y) - (playerP2.y - playerP1.y) * (ballPosNow.x - playerP1.x)) / denominator;
+                float u_b = ((ballPosNext.x - ballPosNow.x) * (ballPosNow.y - playerP1.y) - (ballPosNext.y - ballPosNow.y) * (ballPosNow.x - playerP1.x)) / denominator;
+
+                if (u_a >= 0 && u_a <= 1 && u_b >= 0 && u_b <= 1)
+                {
+                    float x = ballPosNow.x + u_a * (ballPosNext.x - ballPosNow.x);
+                    float y = ballPosNow.y + u_a * (ballPosNext.y - ballPosNow.y);
+
+                    Vector2 intersection = new Vector2(x, y);
+                    float distanceTemp = Vector2.Distance(intersection, ballPosNow);
+                    if(distanceTemp < distance)
+                    {
+                        closestIntersect = 99*intersection/100;
+                        distance = distanceTemp;
+                    }
+                    direction = new Vector2(-direction.x, direction.y);
+                    Debug.Log("AAA");
+                }
+            }
+        }
+        this.move = closestIntersect - ballPosNow;
     }
 
-    public void Bounce(){
-        if(transform.position.y + transform.localScale.y/2 >= upWall.transform.position.y - upWall.transform.localScale.y/2 && transform.position.x + transform.localScale.x/2 >= upWall.transform.position.x - upWall.transform.localScale.x/2 && transform.position.x + transform.localScale.x/2 <= upWall.transform.position.x + upWall.transform.localScale.x/2){
-            direction = new Vector2(direction.x, -direction.y);
-        }else if(transform.position.y - transform.localScale.y/2 <= downWall.transform.position.y + downWall.transform.localScale.y/2 && transform.position.x + transform.localScale.x/2 >= downWall.transform.position.x - downWall.transform.localScale.x/2 && transform.position.x + transform.localScale.x/2 <= downWall.transform.position.x + downWall.transform.localScale.x/2){
-            direction = new Vector2(direction.x, -direction.y);
+    private void CollisionWalls(Vector2 move, List<Vector> walls)
+    {
+        Vector2 ballPosNow = transform.position;
+        Vector2 ballPosNext = ballPosNow + new Vector2(move.x, move.y);
+        float distance = Vector2.Distance(ballPosNow, ballPosNext);
+        Vector2 closestIntersect = move;
+
+        foreach (var wall in walls)
+        {
+            Vector2 wallP1 = wall.p1;
+            Vector2 wallP2 = wall.p2;
+            float denominator = (wallP2.y - wallP1.y) * (ballPosNext.x - ballPosNow.x) - (wallP2.x - wallP1.x) * (ballPosNext.y - ballPosNow.y);
+
+            if (denominator != 0)
+            {
+                float u_a = ((wallP2.x - wallP1.x) * (ballPosNow.y - wallP1.y) - (wallP2.y - wallP1.y) * (ballPosNow.x - wallP1.x)) / denominator;
+                float u_b = ((ballPosNext.x - ballPosNow.x) * (ballPosNow.y - wallP1.y) - (ballPosNext.y - ballPosNow.y) * (ballPosNow.x - wallP1.x)) / denominator;
+
+                if (u_a >= 0 && u_a <= 1 && u_b >= 0 && u_b <= 1)
+                {
+                    float x = ballPosNow.x + u_a * (ballPosNext.x - ballPosNow.x);
+                    float y = ballPosNow.y + u_a * (ballPosNext.y - ballPosNow.y);
+
+                    Vector2 intersection = new Vector2(x, y);
+                    float distanceTemp = Vector2.Distance(intersection, ballPosNow);
+                    if (distanceTemp < distance)
+                    {
+                        closestIntersect = 95 * intersection / 100;
+                    }
+                    direction = new Vector2(direction.x, -direction.y);
+                    Debug.Log("BBB");
+                }
+            }
         }
+        this.move = closestIntersect - ballPosNow;
+    }
+
+    //private void IntersectTest()
+    //{
+    //    Vector2 player1 = new Vector2(-5, 0);
+    //    Vector2 player2 = new Vector2(5, 0);
+    //    Vector2 player2 = new Vector2(5, 0);
+    //}
+
+    private void ThrowBall()
+    {
+        transform.position = Vector2.zero;
+        int temp = Random.Range(0, 2);
+        float angle = Random.Range(30, 45);
+        if (temp == 0)
+        {
+            direction = new Vector2(-1, angle/360).normalized;
+        }
+        else
+        {
+            direction = new Vector2(1, angle/360).normalized;
+        }
+    }
+
+    private List<Vector> FindAllWalls()
+    {
+        List<Vector> vectors = new List<Vector>();
+        GameObject[] walls = GameObject.FindGameObjectsWithTag("Wall");
+        foreach (var wall in walls)
+        {
+            WallScript s = wall.GetComponent<WallScript>();
+            List<Vector> v = s.GetWalls();
+            foreach (Vector v2 in v)
+            {
+                vectors.Add(v2);
+            }
+        }
+        return vectors;
+    }
+
+    private List<Vector> FindAllPlayers()
+    {
+        List<Vector> vectors = new List<Vector>();
+        GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
+        foreach (var player in players)
+        {
+            WallScript s = player.GetComponent<WallScript>();
+            List<Vector> v = s.GetWalls();
+            foreach (Vector v2 in v)
+            {
+                vectors.Add(v2);
+            }
+        }
+        return vectors;
     }
 }
