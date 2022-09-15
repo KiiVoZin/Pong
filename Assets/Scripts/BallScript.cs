@@ -26,9 +26,9 @@ public class BallScript : MonoBehaviour
         players = FindAllPlayers();
         move = direction * speed * Time.deltaTime;
         //Check if moving that collides with a player
-        CollisionPlayers(move, players);
+        CollisionPlayers();
         //Check if moving that collides with a wall
-        //CollisionWalls(move, walls);
+        CollisionWalls();
         transform.Translate(move);
         if (transform.position.x <= -10)
         {
@@ -42,79 +42,97 @@ public class BallScript : MonoBehaviour
         }
     }
 
-    private void CollisionPlayers(Vector2 move ,List<Vector> players)
+    private Vector2 Collide(List<Vector> edges, out Vector2 edgeVector)
     {
         Vector2 ballPosNow = transform.position;
-        Vector2 ballPosNext = ballPosNow + new Vector2(move.x, move.y);
-        Vector2 closestIntersect = move;
-        float distance = Vector2.Distance(ballPosNow, ballPosNext);
+        Vector2 ballPosNext = ballPosNow + move;
+        Vector2 closestIntersect = ballPosNext;
+        edgeVector = new Vector2(0, 0);
 
-        foreach (var player in players)
+        foreach (var edge in edges)
         {
-            Vector2 playerP1 = player.p1;
-            Vector2 playerP2 = player.p2;
-            float denominator = (playerP2.y - playerP1.y) * (ballPosNext.x - ballPosNow.x) - (playerP2.x - playerP1.x) * (ballPosNext.y - ballPosNow.y);
+            Vector2 edgeP1 = edge.p1;
+            Vector2 edgeP2 = edge.p2;
+            float denominator = (edgeP2.y - edgeP1.y) * (ballPosNext.x - ballPosNow.x) - (edgeP2.x - edgeP1.x) * (ballPosNext.y - ballPosNow.y);
 
-            if (denominator != 0)
+            if (denominator == 0) continue;
+            float u_a = ((edgeP2.x - edgeP1.x) * (ballPosNow.y - edgeP1.y) - (edgeP2.y - edgeP1.y) * (ballPosNow.x - edgeP1.x)) / denominator;
+            float u_b = ((ballPosNext.x - ballPosNow.x) * (ballPosNow.y - edgeP1.y) - (ballPosNext.y - ballPosNow.y) * (ballPosNow.x - edgeP1.x)) / denominator;
+
+            if (!(u_a >= 0 && u_a <= 1 && u_b >= 0 && u_b <= 1)) continue;
+            float x = ballPosNow.x + u_a * (ballPosNext.x - ballPosNow.x);
+            float y = ballPosNow.y + u_a * (ballPosNext.y - ballPosNow.y);
+            Vector2 intersection = new Vector2(x, y);
+            float distanceTemp = Vector2.Distance(intersection, ballPosNow);
+            float closestTemp = Vector2.Distance(ballPosNow, closestIntersect);
+            if (distanceTemp < closestIntersect.magnitude)
             {
-                float u_a = ((playerP2.x - playerP1.x) * (ballPosNow.y - playerP1.y) - (playerP2.y - playerP1.y) * (ballPosNow.x - playerP1.x)) / denominator;
-                float u_b = ((ballPosNext.x - ballPosNow.x) * (ballPosNow.y - playerP1.y) - (ballPosNext.y - ballPosNow.y) * (ballPosNow.x - playerP1.x)) / denominator;
+                edgeVector = edgeP2 - edgeP1;
+                closestIntersect = 99*(intersection - ballPosNow)/100;
+            }            
 
-                if (u_a >= 0 && u_a <= 1 && u_b >= 0 && u_b <= 1)
-                {
-                    float x = ballPosNow.x + u_a * (ballPosNext.x - ballPosNow.x);
-                    float y = ballPosNow.y + u_a * (ballPosNext.y - ballPosNow.y);
-
-                    Vector2 intersection = new Vector2(x, y);
-                    float distanceTemp = Vector2.Distance(intersection, ballPosNow);
-                    if(distanceTemp < distance)
-                    {
-                        closestIntersect = 99*intersection/100;
-                        distance = distanceTemp;
-                    }
-                    direction = new Vector2(-direction.x, direction.y);
-                    Debug.Log("AAA");
-                }
-            }
         }
-        this.move = closestIntersect - ballPosNow;
+        Debug.Log("AB" + closestIntersect);
+        return closestIntersect;
     }
 
-    private void CollisionWalls(Vector2 move, List<Vector> walls)
+    private void CollisionPlayers()
     {
         Vector2 ballPosNow = transform.position;
         Vector2 ballPosNext = ballPosNow + new Vector2(move.x, move.y);
-        float distance = Vector2.Distance(ballPosNow, ballPosNext);
-        Vector2 closestIntersect = move;
+        Vector2 closestIntersect = ballPosNext;
+        Vector2 edgeVector;
 
-        foreach (var wall in walls)
+        closestIntersect = Collide(players, out edgeVector);
+        //foreach (var player in players)
+        //{
+        //    Vector2 playerP1 = player.p1;
+        //    Vector2 playerP2 = player.p2;
+        //    float denominator = (playerP2.y - playerP1.y) * (ballPosNext.x - ballPosNow.x) - (playerP2.x - playerP1.x) * (ballPosNext.y - ballPosNow.y);
+
+        //    if (denominator == 0) continue;
+        //    float u_a = ((playerP2.x - playerP1.x) * (ballPosNow.y - playerP1.y) - (playerP2.y - playerP1.y) * (ballPosNow.x - playerP1.x)) / denominator;
+        //    float u_b = ((ballPosNext.x - ballPosNow.x) * (ballPosNow.y - playerP1.y) - (ballPosNext.y - ballPosNow.y) * (ballPosNow.x - playerP1.x)) / denominator;
+
+        //    if (!(u_a >= 0 && u_a <= 1 && u_b >= 0 && u_b <= 1)) continue;
+        //    float x = ballPosNow.x + u_a * (ballPosNext.x - ballPosNow.x);
+        //    float y = ballPosNow.y + u_a * (ballPosNext.y - ballPosNow.y);
+
+        //    Vector2 intersection = new Vector2(x, y);
+        //    float distanceTemp = Vector2.Distance(intersection, ballPosNow);
+        //    if (distanceTemp < Vector2.SqrMagnitude(closestIntersect))
+        //    {
+        //        edgeVector = playerP2 - playerP1;
+        //        closestIntersect = 99 * (intersection - ballPosNow) / 100;
+        //    }
+        //}
+        if (Vector2.Distance(closestIntersect, ballPosNext) >= 0.01f)
         {
-            Vector2 wallP1 = wall.p1;
-            Vector2 wallP2 = wall.p2;
-            float denominator = (wallP2.y - wallP1.y) * (ballPosNext.x - ballPosNow.x) - (wallP2.x - wallP1.x) * (ballPosNext.y - ballPosNow.y);
-
-            if (denominator != 0)
-            {
-                float u_a = ((wallP2.x - wallP1.x) * (ballPosNow.y - wallP1.y) - (wallP2.y - wallP1.y) * (ballPosNow.x - wallP1.x)) / denominator;
-                float u_b = ((ballPosNext.x - ballPosNow.x) * (ballPosNow.y - wallP1.y) - (ballPosNext.y - ballPosNow.y) * (ballPosNow.x - wallP1.x)) / denominator;
-
-                if (u_a >= 0 && u_a <= 1 && u_b >= 0 && u_b <= 1)
-                {
-                    float x = ballPosNow.x + u_a * (ballPosNext.x - ballPosNow.x);
-                    float y = ballPosNow.y + u_a * (ballPosNext.y - ballPosNow.y);
-
-                    Vector2 intersection = new Vector2(x, y);
-                    float distanceTemp = Vector2.Distance(intersection, ballPosNow);
-                    if (distanceTemp < distance)
-                    {
-                        closestIntersect = 95 * intersection / 100;
-                    }
-                    direction = new Vector2(direction.x, -direction.y);
-                    Debug.Log("BBB");
-                }
-            }
+            Debug.Log(direction);
+            Vector2 normal = new Vector2(edgeVector.y, -edgeVector.x).normalized;
+            direction = (direction - 2 * (Vector2.Dot(direction, normal) * normal)).normalized;
+            move = closestIntersect + new Vector2(this.transform.localScale.x, this.transform.localScale.y)*direction;
+            move = closestIntersect;
         }
-        this.move = closestIntersect - ballPosNow;
+
+    }
+
+    private void CollisionWalls()
+    {
+        Vector2 ballPosNow = transform.position;
+        Vector2 ballPosNext = ballPosNow + new Vector2(move.x, move.y);
+        Vector2 closestIntersect;
+        Vector2 edgeVector;
+
+        closestIntersect = Collide(walls, out edgeVector);
+
+        if (closestIntersect != ballPosNext)
+        {
+            Vector2 normal = new Vector2(edgeVector.y, -edgeVector.x);
+            direction = direction - 2 * (Vector2.Dot(direction, normal) * normal).normalized;
+            Debug.Log("Çarpma" + closestIntersect);
+            Debug.Log("direction" + direction);
+        }
     }
 
     //private void IntersectTest()
@@ -128,15 +146,17 @@ public class BallScript : MonoBehaviour
     {
         transform.position = Vector2.zero;
         int temp = Random.Range(0, 2);
-        float angle = Random.Range(30, 45);
+        float angle = Random.Range(45, 60);
         if (temp == 0)
         {
-            direction = new Vector2(-1, angle/360).normalized;
+            direction = new Vector2(-1, angle / 360).normalized;
         }
         else
         {
-            direction = new Vector2(1, angle/360).normalized;
+            direction = new Vector2(1, angle / 360).normalized;
         }
+        direction = new Vector2(1, 0).normalized;
+
     }
 
     private List<Vector> FindAllWalls()
